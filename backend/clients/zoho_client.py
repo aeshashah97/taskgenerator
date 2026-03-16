@@ -36,7 +36,7 @@ class ZohoClient:
         data = response.json()
         access_token = data.get("access_token")
         if not access_token:
-            raise RuntimeError(f"Failed to refresh Zoho token: {data}")
+            raise RuntimeError(f"Failed to refresh Zoho token: {data.get('error', 'unknown')}")
         new_refresh = data.get("refresh_token")
         if new_refresh:
             self._refresh_token = new_refresh
@@ -45,6 +45,9 @@ class ZohoClient:
 
     def _headers(self) -> dict:
         return {"Authorization": f"Zoho-oauthtoken {self._get_access_token()}"}
+
+    def close(self) -> None:
+        self._http.close()
 
     def get_projects(self) -> list[dict]:
         url = f"{ZOHO_BASE}/projects/?status=active"
