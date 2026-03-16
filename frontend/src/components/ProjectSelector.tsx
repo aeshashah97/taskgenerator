@@ -22,7 +22,7 @@ export function ProjectSelector({ value, onChange }: Props) {
   return (
     <div className="flex flex-col gap-1">
       <label className="text-sm font-medium text-slate-700">Zoho Project</label>
-      <Select value={value ?? ''} onValueChange={onChange} disabled={loading}>
+      <Select value={value ?? ''} onValueChange={(v) => { if (v) onChange(v) }} disabled={loading}>
         <SelectTrigger className="w-64">
           <SelectValue placeholder={loading ? 'Loading projects…' : projects.length === 0 ? 'No projects found' : 'Select a project'} />
         </SelectTrigger>
