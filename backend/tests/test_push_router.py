@@ -174,7 +174,7 @@ def test_push_warns_when_dependency_source_failed(zoho_mock):
         "/push", json={"project_id": "proj-1", "tasks": tasks},
     )
     result_b = next(r for r in response.json()["results"] if r["row_id"] == "row-2")
-    assert any("Task A" in w for w in result_b["warnings"])
+    assert any("source task failed to create" in w for w in result_b["warnings"])
 
 
 def test_push_skips_dependency_linking_when_target_task_failed(zoho_mock):

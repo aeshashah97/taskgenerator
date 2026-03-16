@@ -67,6 +67,7 @@ def push_tasks(request: PushRequest):
 
     results: list[PushTaskResult] = []
     name_to_zoho_id: dict[str, str] = {}
+    failed_task_names: set[str] = set()
 
     # Pass 1: create all tasks independently
     for task in request.tasks:
@@ -91,6 +92,7 @@ def push_tasks(request: PushRequest):
                 warnings=warnings,
             ))
         except Exception as e:
+            failed_task_names.add(task.task_name)
             results.append(PushTaskResult(
                 row_id=task.row_id,
                 task_name=task.task_name,
@@ -111,9 +113,14 @@ def push_tasks(request: PushRequest):
         for dep_name in task.dependencies:
             dep_zoho_id = name_to_zoho_id.get(dep_name)
             if not dep_zoho_id:
-                result.warnings.append(
-                    f"Dependency '{dep_name}' could not be linked: source task failed to create or was not found"
-                )
+                if dep_name in failed_task_names:
+                    result.warnings.append(
+                        f"dependency '{dep_name}' could not be linked: source task failed to create"
+                    )
+                else:
+                    result.warnings.append(
+                        f"dependency '{dep_name}' could not be linked: source task not found"
+                    )
                 if result.status == "created":
                     result.status = "warning"
                 continue
