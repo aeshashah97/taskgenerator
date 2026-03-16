@@ -1,0 +1,12 @@
+# Backend
+backend/.env
+backend/zoho_token.json
+backend/.venv/
+backend/__pycache__/
+backend/*.pyc
+backend/.pytest_cache/
+
+# Frontend
+frontend/.env
+frontend/node_modules/
+frontend/dist/
