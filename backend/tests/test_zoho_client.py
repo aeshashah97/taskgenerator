@@ -30,6 +30,7 @@ class TestTokenManagement:
         monkeypatch.setattr("clients.zoho_client.TOKEN_FILE", str(token_path))
         client = ZohoClient()
         assert client._refresh_token == "file_refresh_token"
+        assert client._refresh_token != "initial_refresh_token"
 
     def test_refresh_saves_new_token_to_file(self, zoho_env, monkeypatch):
         token_path = zoho_env / "zoho_token.json"
@@ -130,6 +131,7 @@ class TestZohoApiMethods:
         assert "proj_1" in call_url
         assert "task_A" in call_url
         assert "dependency" in call_url
+        assert call_url.endswith("/tasks/task_A/dependency/")
 
     def test_add_dependency_sends_correct_payload(self, zoho_client):
         mock_response = MagicMock()
