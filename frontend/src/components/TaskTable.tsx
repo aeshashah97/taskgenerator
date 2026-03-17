@@ -13,6 +13,38 @@ interface Props {
 const BILLING_OPTIONS: BillingType[] = ['billable', 'non-billable']
 const PRIORITY_OPTIONS: Priority[] = ['high', 'medium', 'low']
 
+const CSV_COLUMNS: (keyof Task)[] = [
+  'task_name', 'description', 'assignee_name', 'estimated_hours',
+  'billing_type', 'sprint_milestone', 'priority', 'start_date', 'end_date',
+]
+
+function csvField(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  const str = String(value)
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return '"' + str.replace(/"/g, '""') + '"'
+  }
+  return str
+}
+
+function buildCsv(tasks: Task[]): string {
+  const header = CSV_COLUMNS.join(',')
+  const rows = tasks.map(t => CSV_COLUMNS.map(col => csvField(t[col])).join(','))
+  return [header, ...rows].join('\n')
+}
+
+function downloadCsv(content: string, filename: string): void {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 function emptyTask(): Task {
   return {
     row_id: uuidv4(),
@@ -261,7 +293,18 @@ export function TaskTable({ tasks, members, milestones, onChange }: Props) {
           ))}
         </tbody>
       </table>
-      <button onClick={addRow} className="mt-2 text-indigo-600 hover:text-indigo-800 underline text-xs font-medium">+ Add task</button>
+      <div className="flex items-center gap-4 mt-2">
+        <button onClick={addRow} className="text-indigo-600 hover:text-indigo-800 underline text-xs font-medium">
+          + Add task
+        </button>
+        <button
+          onClick={() => downloadCsv(buildCsv(tasks), 'tasks.csv')}
+          disabled={tasks.length === 0}
+          className="text-indigo-600 hover:text-indigo-800 underline text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          Export CSV
+        </button>
+      </div>
     </div>
   )
 }
