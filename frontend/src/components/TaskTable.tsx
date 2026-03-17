@@ -18,7 +18,7 @@ function emptyTask(): Task {
     task_name: '',
     description: '',
     assignee_name: null,
-    estimated_hours: 1.0,
+    estimated_hours: null,
     billing_type: 'billable',
     sprint_milestone: null,
     priority: null,
@@ -49,7 +49,7 @@ export function TaskTable({ tasks, members, milestones, onChange }: Props) {
       <div className="text-center py-8 text-slate-400 text-sm">
         No tasks yet. Extract tasks from your SOW or add one manually.
         <div className="mt-2">
-          <button onClick={addRow} className="text-blue-600 underline text-xs">+ Add task</button>
+          <button onClick={addRow} className="text-indigo-600 hover:text-indigo-800 underline text-xs">+ Add task</button>
         </div>
       </div>
     )
@@ -60,15 +60,19 @@ export function TaskTable({ tasks, members, milestones, onChange }: Props) {
       <table className="w-full text-xs border-collapse">
         <thead>
           <tr className="bg-slate-100 text-slate-600 text-left">
+            <th className="p-2 border border-slate-200 w-8"></th>
             {['Task Name *', 'Description *', 'Assignee', 'Hours *', 'Billing *',
-              'Milestone', 'Priority', 'Dependencies', 'Start Date', 'End Date', ''].map((h) => (
+              'Priority', 'Start Date', 'End Date', ''].map((h) => (
               <th key={h} className="p-2 border border-slate-200 min-w-[80px]">{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {tasks.map((task) => (
-            <tr key={task.row_id} className="hover:bg-slate-50">
+            <tr key={task.row_id} className="hover:bg-indigo-50 transition-colors">
+              <td className="p-1 border border-slate-200 text-center">
+                <input type="checkbox" disabled />
+              </td>
               <td className="p-1 border border-slate-200">
                 <input className={cellClass(task.row_id, 'task_name')} value={task.task_name}
                   onChange={(e) => update(task.row_id, { task_name: e.target.value })} />
@@ -87,12 +91,11 @@ export function TaskTable({ tasks, members, milestones, onChange }: Props) {
               </td>
               <td className="p-1 border border-slate-200">
                 <input type="number" step="0.5" min="0.5" max="999"
-                  className={cellClass(task.row_id, 'estimated_hours', task._hours_defaulted ? 'bg-amber-50' : '')}
-                  value={task.estimated_hours}
-                  title={task._hours_defaulted ? 'Defaulted to 1.0 by AI — please verify' : undefined}
+                  className={cellClass(task.row_id, 'estimated_hours')}
+                  value={task.estimated_hours ?? ''}
+                  placeholder="hours"
                   onChange={(e) => update(task.row_id, {
-                    estimated_hours: parseFloat(e.target.value),
-                    _hours_defaulted: false,
+                    estimated_hours: e.target.value ? parseFloat(e.target.value) : null,
                   })} />
               </td>
               <td className="p-1 border border-slate-200">
@@ -103,33 +106,17 @@ export function TaskTable({ tasks, members, milestones, onChange }: Props) {
                 </select>
               </td>
               <td className="p-1 border border-slate-200">
-                {/* datalist provides autocomplete from fetched milestones */}
-                <input list={`ms-${task.row_id}`}
-                  className={cellClass(task.row_id, 'sprint_milestone')}
-                  value={task.sprint_milestone ?? ''}
-                  placeholder="optional"
-                  onChange={(e) => update(task.row_id, { sprint_milestone: e.target.value || null })} />
-                <datalist id={`ms-${task.row_id}`}>
-                  {milestones.map((m) => <option key={m.id} value={m.name} />)}
-                </datalist>
-              </td>
-              <td className="p-1 border border-slate-200">
-                <select className={cellClass(task.row_id, 'priority')}
+                <select
+                  className={cellClass(task.row_id, 'priority') + ` ${
+                    task.priority === 'high' ? 'text-red-600' :
+                    task.priority === 'medium' ? 'text-amber-600' :
+                    task.priority === 'low' ? 'text-green-600' : ''
+                  }`}
                   value={task.priority ?? ''}
                   onChange={(e) => update(task.row_id, { priority: (e.target.value as Priority) || null })}>
                   <option value="">—</option>
                   {PRIORITY_OPTIONS.map((p) => <option key={p} value={p}>{p}</option>)}
                 </select>
-              </td>
-              <td className="p-1 border border-slate-200">
-                <input className={cellClass(task.row_id, 'dependencies')}
-                  value={task.dependencies.join(', ')}
-                  placeholder="Task A, Task B"
-                  onChange={(e) => update(task.row_id, {
-                    dependencies: e.target.value
-                      ? e.target.value.split(',').map((s) => s.trim()).filter(Boolean)
-                      : [],
-                  })} />
               </td>
               <td className="p-1 border border-slate-200">
                 <input type="date" className={cellClass(task.row_id, 'start_date')}
@@ -150,7 +137,7 @@ export function TaskTable({ tasks, members, milestones, onChange }: Props) {
           ))}
         </tbody>
       </table>
-      <button onClick={addRow} className="mt-2 text-blue-600 underline text-xs">+ Add task</button>
+      <button onClick={addRow} className="mt-2 text-indigo-600 hover:text-indigo-800 underline text-xs font-medium">+ Add task</button>
     </div>
   )
 }
