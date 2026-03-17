@@ -1,3 +1,4 @@
+import React, { useState, useEffect, useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import type { Task, BillingType, Priority, ZohoMember, ZohoMilestone } from '../types/task'
 import { validateTasksForPush } from '../utils/validation'
@@ -32,12 +33,54 @@ export function TaskTable({ tasks, members, milestones, onChange }: Props) {
   const errors = validateTasksForPush(tasks)
   const errorMap = Object.fromEntries(errors.map((e) => [e.row_id, new Set(e.fields)]))
 
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkAssignee, setBulkAssignee] = useState('')
+  const [bulkPriority, setBulkPriority] = useState('')
+  const [bulkBilling, setBulkBilling] = useState('')
+  const [bulkMilestone, setBulkMilestone] = useState('')
+  const selectAllRef = useRef<HTMLInputElement>(null)
+
+  // Prune selectedIds to only IDs still present in tasks
+  useEffect(() => {
+    setSelectedIds(prev => new Set([...prev].filter(id => tasks.some(t => t.row_id === id))))
+  }, [tasks])
+
+  const allSelected = selectedIds.size === tasks.length && tasks.length > 0
+  const someSelected = selectedIds.size > 0 && !allSelected
+
+  // Sync indeterminate state on the select-all checkbox ref
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someSelected
+    }
+  }, [someSelected])
+
   function update(row_id: string, patch: Partial<Task>) {
     onChange(tasks.map((t) => (t.row_id === row_id ? { ...t, ...patch } : t)))
   }
 
   function addRow() { onChange([...tasks, emptyTask()]) }
   function deleteRow(row_id: string) { onChange(tasks.filter((t) => t.row_id !== row_id)) }
+
+  function toggleRow(row_id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(row_id) ? next.delete(row_id) : next.add(row_id)
+      return next
+    })
+  }
+
+  function handleSelectAll(e: React.ChangeEvent<HTMLInputElement>) {
+    if (e.target.checked) {
+      setSelectedIds(new Set(tasks.map(t => t.row_id)))
+    } else {
+      setSelectedIds(new Set())
+    }
+  }
+
+  function bulkUpdate(patch: Partial<Task>) {
+    onChange(tasks.map(t => selectedIds.has(t.row_id) ? { ...t, ...patch } : t))
+  }
 
   function cellClass(row_id: string, field: string, extra = '') {
     const hasError = errorMap[row_id]?.has(field)
@@ -57,10 +100,81 @@ export function TaskTable({ tasks, members, milestones, onChange }: Props) {
 
   return (
     <div className="overflow-x-auto">
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-lg mb-2">
+          <span className="text-sm font-medium text-indigo-700">{selectedIds.size} selected</span>
+
+          <select
+            className="border rounded px-1 py-0.5 text-xs border-slate-200"
+            value={bulkAssignee}
+            onChange={(e) => {
+              if (!e.target.value) return
+              bulkUpdate({ assignee_name: e.target.value })
+              setBulkAssignee('')
+            }}
+          >
+            <option value="">Set assignee…</option>
+            {members.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+          </select>
+
+          <select
+            className="border rounded px-1 py-0.5 text-xs border-slate-200"
+            value={bulkPriority}
+            onChange={(e) => {
+              if (!e.target.value) return
+              bulkUpdate({ priority: e.target.value as Priority })
+              setBulkPriority('')
+            }}
+          >
+            <option value="">Set priority…</option>
+            {PRIORITY_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+
+          <select
+            className="border rounded px-1 py-0.5 text-xs border-slate-200"
+            value={bulkBilling}
+            onChange={(e) => {
+              if (!e.target.value) return
+              bulkUpdate({ billing_type: e.target.value as BillingType })
+              setBulkBilling('')
+            }}
+          >
+            <option value="">Set billing…</option>
+            {BILLING_OPTIONS.map(b => <option key={b} value={b}>{b}</option>)}
+          </select>
+
+          <select
+            className="border rounded px-1 py-0.5 text-xs border-slate-200"
+            value={bulkMilestone}
+            onChange={(e) => {
+              if (!e.target.value) return
+              bulkUpdate({ sprint_milestone: e.target.value })
+              setBulkMilestone('')
+            }}
+          >
+            <option value="">Set milestone…</option>
+            {milestones.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+          </select>
+
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="text-xs text-slate-500 hover:text-slate-700 underline"
+          >
+            Deselect all
+          </button>
+        </div>
+      )}
       <table className="w-full text-xs border-collapse">
         <thead>
           <tr className="bg-slate-100 text-slate-600 text-left">
-            <th className="p-2 border border-slate-200 w-8"></th>
+            <th className="p-2 border border-slate-200 w-8">
+              <input
+                type="checkbox"
+                ref={selectAllRef}
+                checked={allSelected}
+                onChange={handleSelectAll}
+              />
+            </th>
             {['Task Name *', 'Description *', 'Assignee', 'Hours *', 'Billing *',
               'Priority', 'Start Date', 'End Date', ''].map((h) => (
               <th key={h} className="p-2 border border-slate-200 min-w-[80px]">{h}</th>
@@ -69,9 +183,13 @@ export function TaskTable({ tasks, members, milestones, onChange }: Props) {
         </thead>
         <tbody>
           {tasks.map((task) => (
-            <tr key={task.row_id} className="hover:bg-indigo-50 transition-colors">
+            <tr key={task.row_id} className={selectedIds.has(task.row_id) ? 'bg-indigo-100' : 'hover:bg-indigo-50 transition-colors'}>
               <td className="p-1 border border-slate-200 text-center">
-                <input type="checkbox" disabled />
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(task.row_id)}
+                  onChange={() => toggleRow(task.row_id)}
+                />
               </td>
               <td className="p-1 border border-slate-200">
                 <input className={cellClass(task.row_id, 'task_name')} value={task.task_name}
