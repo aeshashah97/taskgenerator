@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import type { Task, BillingType, Priority, ZohoMember, ZohoMilestone } from '../types/task'
 import { validateTasksForPush } from '../utils/validation'
@@ -30,8 +30,11 @@ function emptyTask(): Task {
 }
 
 export function TaskTable({ tasks, members, milestones, onChange }: Props) {
-  const errors = validateTasksForPush(tasks)
-  const errorMap = Object.fromEntries(errors.map((e) => [e.row_id, new Set(e.fields)]))
+  const errors = useMemo(() => validateTasksForPush(tasks), [tasks])
+  const errorMap = useMemo(
+    () => Object.fromEntries(errors.map((e) => [e.row_id, new Set(e.fields)])),
+    [errors]
+  )
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkAssignee, setBulkAssignee] = useState('')
@@ -42,7 +45,10 @@ export function TaskTable({ tasks, members, milestones, onChange }: Props) {
 
   // Prune selectedIds to only IDs still present in tasks
   useEffect(() => {
-    setSelectedIds(prev => new Set([...prev].filter(id => tasks.some(t => t.row_id === id))))
+    setSelectedIds(prev => {
+      const next = new Set([...prev].filter(id => tasks.some(t => t.row_id === id)))
+      return next.size === prev.size ? prev : next
+    })
   }, [tasks])
 
   const allSelected = selectedIds.size === tasks.length && tasks.length > 0
