@@ -30,11 +30,11 @@ function csvField(value: unknown): string {
 function buildCsv(tasks: Task[]): string {
   const header = CSV_COLUMNS.join(',')
   const rows = tasks.map(t => CSV_COLUMNS.map(col => csvField(t[col])).join(','))
-  return [header, ...rows].join('\n')
+  return [header, ...rows].join('\r\n')
 }
 
 function downloadCsv(content: string, filename: string): void {
-  const blob = new Blob([content], { type: 'text/csv;charset=utf-8' })
+  const blob = new Blob(['\uFEFF', content], { type: 'text/csv;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -299,7 +299,7 @@ export function TaskTable({ tasks, members, milestones, onChange }: Props) {
         </button>
         <button
           onClick={() => downloadCsv(buildCsv(tasks), 'tasks.csv')}
-          disabled={tasks.length === 0}
+          disabled={tasks.length === 0} // defensive: component early-returns on empty tasks, but guard kept for safety
           className="text-indigo-600 hover:text-indigo-800 underline text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
         >
           Export CSV
