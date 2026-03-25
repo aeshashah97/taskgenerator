@@ -67,6 +67,68 @@ function emptyTask(): Task {
   }
 }
 
+interface AssigneeMultiSelectProps {
+  value: string[]
+  members: ZohoMember[]
+  onChange: (names: string[]) => void
+  hasError?: boolean
+}
+
+function AssigneeMultiSelect({ value, members, onChange, hasError }: AssigneeMultiSelectProps) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleMouseDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleMouseDown)
+    return () => document.removeEventListener('mousedown', handleMouseDown)
+  }, [])
+
+  function toggle(name: string) {
+    if (value.includes(name)) {
+      onChange(value.filter(n => n !== name))
+    } else {
+      onChange([...value, name])
+    }
+  }
+
+  const displayText = value.length > 0 ? value.join(', ') : '— unassigned —'
+  const borderClass = hasError ? 'border-red-500 bg-red-50' : 'border-slate-200'
+
+  return (
+    <div ref={ref} className="relative">
+      <div
+        className={`border rounded px-1 py-0.5 text-xs w-full cursor-pointer truncate ${borderClass}`}
+        onClick={() => setOpen(o => !o)}
+        title={value.length > 0 ? value.join(', ') : undefined}
+      >
+        {displayText}
+      </div>
+      {open && (
+        <div className="absolute z-10 top-full left-0 mt-0.5 bg-white border border-slate-200 rounded shadow-md min-w-[160px] max-h-48 overflow-y-auto">
+          {members.length === 0 && (
+            <div className="px-2 py-1 text-xs text-slate-400">No members</div>
+          )}
+          {members.map(m => (
+            <label key={m.id} className="flex items-center gap-1.5 px-2 py-1 hover:bg-slate-50 cursor-pointer text-xs">
+              <input
+                type="checkbox"
+                checked={value.includes(m.name)}
+                onChange={() => toggle(m.name)}
+              />
+              {m.name}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function TaskTable({ tasks, members, onChange }: Props) {
   const errors = useMemo(() => validateTasksForPush(tasks), [tasks])
   const errorMap = useMemo(
@@ -125,18 +187,21 @@ export function TaskTable({ tasks, members, onChange }: Props) {
     onChange(tasks.map(t => selectedIds.has(t.row_id) ? { ...t, ...patch } : t))
   }
 
-  function applyBulkAssignees(_names: string[]) { /* implemented in Task 7 */ }
+  function applyBulkAssignees(names: string[]) {
+    if (names.length === 0) return
+    onChange(tasks.map(t =>
+      selectedIds.has(t.row_id)
+        ? { ...t, assignee_names: [...new Set([...t.assignee_names, ...names])] }
+        : t
+    ))
+    setBulkAssignees([])
+  }
 
   function cellClass(row_id: string, field: string, extra = '') {
     const hasError = errorMap[row_id]?.has(field)
     return `border rounded px-1 py-0.5 text-xs w-full ${hasError ? 'border-red-500 bg-red-50' : 'border-slate-200'} ${extra}`
   }
 
-  // suppress unused warnings until Task 7 wires up AssigneeMultiSelect
-  void bulkAssignees
-  void setBulkAssignees
-  void applyBulkAssignees
-  void members
 
   if (tasks.length === 0) {
     return (
@@ -155,8 +220,13 @@ export function TaskTable({ tasks, members, onChange }: Props) {
         <div className="flex items-center gap-3 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-lg mb-2">
           <span className="text-sm font-medium text-indigo-700">{selectedIds.size} selected</span>
 
-          {/* AssigneeMultiSelect bulk — coming in Task 7 */}
-          <span className="text-xs text-slate-400">assignee multi-select (todo)</span>
+          <AssigneeMultiSelect
+            value={bulkAssignees}
+            members={members}
+            onChange={(names) => {
+              if (names.length > 0) applyBulkAssignees(names)
+            }}
+          />
 
           <select
             className="border rounded px-1 py-0.5 text-xs border-slate-200"
@@ -228,9 +298,12 @@ export function TaskTable({ tasks, members, onChange }: Props) {
                   onChange={(e) => update(task.row_id, { description: e.target.value })} />
               </td>
               <td className="p-1 border border-slate-200">
-                <div className={cellClass(task.row_id, 'assignee_names')}>
-                  {task.assignee_names.length > 0 ? task.assignee_names.join(', ') : '— unassigned —'}
-                </div>
+                <AssigneeMultiSelect
+                  value={task.assignee_names}
+                  members={members}
+                  onChange={(names) => update(task.row_id, { assignee_names: names })}
+                  hasError={errorMap[task.row_id]?.has('assignee_names')}
+                />
               </td>
               <td className="p-1 border border-slate-200">
                 <input type="number" step="0.5" min="0.5" max="999"
