@@ -2,59 +2,41 @@ import pytest
 import httpx
 from fastapi.testclient import TestClient
 from unittest.mock import MagicMock, patch
-from routers.push_router import _resolve_assignee, _resolve_milestone
+from routers.push_router import _resolve_assignees
 
 
 # --- Unit tests for resolver helpers ---
 
-class TestResolveAssignee:
-    def test_exact_match_returns_id(self):
-        members = [{"id": "u1", "name": "Alice"}, {"id": "u2", "name": "Bob"}]
-        user_id, warning = _resolve_assignee("Alice", members)
-        assert user_id == "u1"
-        assert warning is None
+class TestResolveAssignees:
+    MEMBERS = [{"id": "u1", "name": "Alice"}, {"id": "u2", "name": "Bob"}]
+
+    def test_empty_list_returns_none_no_warnings(self):
+        ids, warnings = _resolve_assignees([], self.MEMBERS)
+        assert ids is None
+        assert warnings == []
+
+    def test_two_names_both_resolved(self):
+        ids, warnings = _resolve_assignees(["Alice", "Bob"], self.MEMBERS)
+        assert ids == "u1,u2"
+        assert warnings == []
 
     def test_case_insensitive_match(self):
-        members = [{"id": "u1", "name": "Alice"}]
-        user_id, warning = _resolve_assignee("alice", members)
-        assert user_id == "u1"
+        ids, warnings = _resolve_assignees(["alice"], self.MEMBERS)
+        assert ids == "u1"
+        assert warnings == []
 
-    def test_no_match_returns_warning(self):
-        members = [{"id": "u1", "name": "Alice"}]
-        user_id, warning = _resolve_assignee("Unknown", members)
-        assert user_id is None
-        assert "Unknown" in warning
-        assert "assignee" in warning.lower()
+    def test_one_resolved_one_not(self):
+        ids, warnings = _resolve_assignees(["Alice", "Unknown"], self.MEMBERS)
+        assert ids == "u1"
+        assert len(warnings) == 1
+        assert "Unknown" in warnings[0]
 
-    def test_none_assignee_returns_none_no_warning(self):
-        user_id, warning = _resolve_assignee(None, [])
-        assert user_id is None
-        assert warning is None
+    def test_all_unresolved_returns_none_with_warnings(self):
+        ids, warnings = _resolve_assignees(["Ghost"], self.MEMBERS)
+        assert ids is None
+        assert len(warnings) == 1
+        assert "Ghost" in warnings[0]
 
-
-class TestResolveMilestone:
-    def test_exact_match_returns_id(self):
-        milestones = [{"id": "m1", "name": "Sprint 1"}]
-        ms_id, warning = _resolve_milestone("Sprint 1", milestones)
-        assert ms_id == "m1"
-        assert warning is None
-
-    def test_case_insensitive_match(self):
-        milestones = [{"id": "m1", "name": "Sprint 1"}]
-        ms_id, warning = _resolve_milestone("sprint 1", milestones)
-        assert ms_id == "m1"
-
-    def test_no_match_returns_warning(self):
-        milestones = [{"id": "m1", "name": "Sprint 1"}]
-        ms_id, warning = _resolve_milestone("Sprint 99", milestones)
-        assert ms_id is None
-        assert "Sprint 99" in warning
-        assert "milestone" in warning.lower()
-
-    def test_none_milestone_returns_none_no_warning(self):
-        ms_id, warning = _resolve_milestone(None, [])
-        assert ms_id is None
-        assert warning is None
 
 
 # --- Integration tests for /push endpoint ---
@@ -64,10 +46,9 @@ def make_push_task(overrides=None):
         "row_id": "row-1",
         "task_name": "Set up repo",
         "description": "Init project",
-        "assignee_name": "Alice",
+        "assignee_names": ["Alice"],
         "estimated_hours": 2.0,
         "billing_type": "billable",
-        "sprint_milestone": None,
         "priority": None,
         "dependencies": [],
         "start_date": None,
@@ -83,7 +64,6 @@ def zoho_mock():
     with patch("routers.push_router.ZohoClient") as MockZoho:
         instance = MagicMock()
         instance.get_members.return_value = [{"id": "user-1", "name": "Alice"}]
-        instance.get_milestones.return_value = [{"id": "ms-1", "name": "Sprint 1"}]
         instance.create_task.return_value = {"id_string": "zoho-task-1"}
         MockZoho.return_value = instance
         from main import app
@@ -105,7 +85,7 @@ def test_push_creates_task_successfully(zoho_mock):
 
 def test_push_warns_when_assignee_not_found(zoho_mock):
     test_client, _ = zoho_mock
-    task = make_push_task({"assignee_name": "Unknown Person"})
+    task = make_push_task({"assignee_names": ["Unknown Person"]})
     response = test_client.post(
         "/push", json={"project_id": "proj-1", "tasks": [task]},
     )
@@ -113,16 +93,6 @@ def test_push_warns_when_assignee_not_found(zoho_mock):
     result = response.json()["results"][0]
     assert result["status"] == "warning"
     assert any("assignee" in w.lower() for w in result["warnings"])
-
-
-def test_push_warns_when_milestone_not_found(zoho_mock):
-    test_client, _ = zoho_mock
-    task = make_push_task({"sprint_milestone": "Nonexistent Sprint"})
-    response = test_client.post(
-        "/push", json={"project_id": "proj-1", "tasks": [task]},
-    )
-    result = response.json()["results"][0]
-    assert any("milestone" in w.lower() for w in result["warnings"])
 
 
 def test_push_handles_task_creation_failure_independently(zoho_mock):

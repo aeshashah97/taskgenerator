@@ -5,54 +5,57 @@ from models.task import PushRequest, PushResponse, PushTaskResult
 
 router = APIRouter()
 
-BILLING_MAP = {"billable": "1", "non-billable": "2"}
-PRIORITY_MAP = {"high": "1", "medium": "2", "low": "3"}
+PRIORITY_MAP = {"high": "High", "medium": "Medium", "low": "Low"}
 
 
-def _resolve_assignee(
-    assignee_name: str | None, members: list[dict]
-) -> tuple[str | None, str | None]:
-    """Returns (zoho_user_id, warning_message)."""
-    if not assignee_name:
-        return None, None
-    for m in members:
-        if m["name"].lower() == assignee_name.lower():
-            return m["id"], None
-    return (
-        None,
-        f"Assignee '{assignee_name}' not found in project members — task created without assignee",
-    )
+def _resolve_assignees(
+    assignee_names: list[str], members: list[dict]
+) -> tuple[str | None, list[str]]:
+    """Returns (comma_separated_ids_or_None, warnings)."""
+    if not assignee_names:
+        return None, []
+    resolved_ids = []
+    warnings = []
+    for name in assignee_names:
+        for m in members:
+            if m["name"].lower() == name.lower():
+                resolved_ids.append(m["id"])
+                break
+        else:
+            warnings.append(
+                f"Assignee '{name}' not found in project members — skipped"
+            )
+    return (",".join(resolved_ids) if resolved_ids else None), warnings
 
 
-def _resolve_milestone(
-    milestone_name: str | None, milestones: list[dict]
-) -> tuple[str | None, str | None]:
-    """Returns (zoho_milestone_id, warning_message)."""
-    if not milestone_name:
-        return None, None
-    for m in milestones:
-        if m["name"].lower() == milestone_name.lower():
-            return m["id"], None
-    return None, f"Milestone '{milestone_name}' not found in project — field dropped"
+def _zoho_date(iso_date: str | None) -> str | None:
+    """Convert YYYY-MM-DD to MM-DD-YYYY for Zoho."""
+    if not iso_date:
+        return None
+    try:
+        y, m, d = iso_date.split("-")
+        return f"{m}-{d}-{y}"
+    except Exception:
+        return None
 
 
-def _build_task_payload(task, assignee_id: str | None, milestone_id: str | None) -> dict:
+def _build_task_payload(task, assignee_ids: str | None) -> dict:
     payload = {
         "name": task.task_name,
         "description": task.description,
-        "duration": str(task.estimated_hours),
-        "billing_type": BILLING_MAP[task.billing_type],
     }
-    if assignee_id:
-        payload["person_responsible"] = assignee_id
-    if milestone_id:
-        payload["milestone_id"] = milestone_id
+    if task.estimated_hours:
+        payload["duration"] = str(round(task.estimated_hours / 8, 2))
+    if assignee_ids:
+        payload["person_responsible"] = assignee_ids
     if task.priority:
         payload["priority"] = PRIORITY_MAP[task.priority]
-    if task.start_date:
-        payload["start_date"] = task.start_date
-    if task.end_date:
-        payload["end_date"] = task.end_date
+    start = _zoho_date(task.start_date)
+    if start:
+        payload["start_date"] = start
+    end = _zoho_date(task.end_date)
+    if end:
+        payload["end_date"] = end
     return payload
 
 
@@ -61,7 +64,6 @@ def push_tasks(request: PushRequest):
     try:
         zoho = ZohoClient()
         members = zoho.get_members(request.project_id)
-        milestones = zoho.get_milestones(request.project_id)
     except httpx.HTTPError as e:
         raise HTTPException(status_code=503, detail=f"Zoho API unavailable: {e}")
 
@@ -72,14 +74,10 @@ def push_tasks(request: PushRequest):
     # Pass 1: create all tasks independently
     for task in request.tasks:
         warnings = []
-        assignee_id, aw = _resolve_assignee(task.assignee_name, members)
-        if aw:
-            warnings.append(aw)
-        milestone_id, mw = _resolve_milestone(task.sprint_milestone, milestones)
-        if mw:
-            warnings.append(mw)
+        assignee_ids, aws = _resolve_assignees(task.assignee_names, members)
+        warnings.extend(aws)
         try:
-            payload = _build_task_payload(task, assignee_id, milestone_id)
+            payload = _build_task_payload(task, assignee_ids)
             zoho_task = zoho.create_task(request.project_id, payload)
             zoho_id = zoho_task.get("id_string") or zoho_task.get("id")
             name_to_zoho_id[task.task_name] = zoho_id
@@ -106,7 +104,6 @@ def push_tasks(request: PushRequest):
         if not task.dependencies:
             continue
         result = next((r for r in results if r.row_id == task.row_id), None)
-        # Skip pass 2 entirely for tasks that failed in pass 1
         if not result or result.status == "failed":
             continue
         task_zoho_id = result.zoho_task_id
