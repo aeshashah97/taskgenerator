@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Literal, Optional
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 BillingType = Literal["billable", "non-billable"]
@@ -11,14 +11,22 @@ TaskStatus = Literal["created", "failed", "warning"]
 class Task(BaseModel):
     task_name: str
     description: str
-    assignee_name: Optional[str] = None
-    estimated_hours: float = Field(..., ge=0.5, le=999)
+    assignee_names: list[str] = Field(default_factory=list)
+    estimated_hours: Optional[float] = Field(None, ge=0.5, le=999)
     billing_type: BillingType
-    sprint_milestone: Optional[str] = None
     priority: Optional[Priority] = None
     dependencies: list[str] = Field(default_factory=list)
     start_date: Optional[str] = None  # YYYY-MM-DD
     end_date: Optional[str] = None    # YYYY-MM-DD
+
+    @field_validator('assignee_names', mode='before')
+    @classmethod
+    def coerce_assignee_names(cls, v):
+        if v is None or v == "":
+            return []
+        if isinstance(v, str):
+            return [v]
+        return v
 
     @model_validator(mode="after")
     def validate_dates(self) -> Task:

@@ -12,8 +12,7 @@ class TestTask:
             billing_type="billable",
         )
         assert task.task_name == "Set up repo"
-        assert task.assignee_name is None
-        assert task.sprint_milestone is None
+        assert task.assignee_names == []   # changed from assignee_name is None
         assert task.priority is None
         assert task.dependencies == []
         assert task.start_date is None
@@ -23,10 +22,9 @@ class TestTask:
         task = Task(
             task_name="Build API",
             description="Implement REST endpoints",
-            assignee_name="Alice",
+            assignee_names=["Alice"],       # changed from assignee_name="Alice"
             estimated_hours=8.0,
             billing_type="non-billable",
-            sprint_milestone="Sprint 1",
             priority="high",
             dependencies=["Set up repo"],
             start_date="2026-03-17",
@@ -72,6 +70,43 @@ class TestTask:
             start_date="2026-03-17", end_date="2026-03-17",
         )
         assert task.end_date == "2026-03-17"
+
+    # --- New assignee_names validator tests ---
+
+    def test_assignee_names_accepts_list(self):
+        task = Task(
+            task_name="X", description="Y", estimated_hours=1.0,
+            billing_type="billable", assignee_names=["Alice", "Bob"],
+        )
+        assert task.assignee_names == ["Alice", "Bob"]
+
+    def test_assignee_names_coerces_single_string(self):
+        task = Task(
+            task_name="X", description="Y", estimated_hours=1.0,
+            billing_type="billable", assignee_names="Alice",
+        )
+        assert task.assignee_names == ["Alice"]
+
+    def test_assignee_names_coerces_none_to_empty(self):
+        task = Task(
+            task_name="X", description="Y", estimated_hours=1.0,
+            billing_type="billable", assignee_names=None,
+        )
+        assert task.assignee_names == []
+
+    def test_assignee_names_coerces_empty_string_to_empty(self):
+        task = Task(
+            task_name="X", description="Y", estimated_hours=1.0,
+            billing_type="billable", assignee_names="",
+        )
+        assert task.assignee_names == []
+
+    def test_assignee_names_defaults_to_empty(self):
+        task = Task(
+            task_name="X", description="Y", estimated_hours=1.0,
+            billing_type="billable",
+        )
+        assert task.assignee_names == []
 
     def test_missing_task_name_raises(self):
         with pytest.raises(ValidationError):
