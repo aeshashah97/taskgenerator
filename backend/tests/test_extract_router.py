@@ -6,10 +6,9 @@ from unittest.mock import patch, MagicMock
 VALID_TASK = {
     "task_name": "Set up repo",
     "description": "Initialize project",
-    "assignee_name": "Alice",
+    "assignee_names": ["Alice"],
     "estimated_hours": 2.0,
     "billing_type": "billable",
-    "sprint_milestone": None,
     "priority": None,
     "dependencies": [],
     "start_date": None,
