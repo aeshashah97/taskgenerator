@@ -10,10 +10,9 @@ export interface Task {
   row_id: string
   task_name: string
   description: string
-  assignee_name: string | null
-  estimated_hours: number
+  assignee_names: string[]
+  estimated_hours: number | null
   billing_type: BillingType
-  sprint_milestone: string | null
   priority: Priority | null
   dependencies: string[]
   start_date: string | null  // YYYY-MM-DD
@@ -23,7 +22,6 @@ export interface Task {
 
 export interface ZohoProject { id: string; name: string }
 export interface ZohoMember { id: string; name: string }
-export interface ZohoMilestone { id: string; name: string }
 
 export interface ExtractRequest {
   sow_text: string
