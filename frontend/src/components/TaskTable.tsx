@@ -187,11 +187,11 @@ export function TaskTable({ tasks, members, onChange }: Props) {
     onChange(tasks.map(t => selectedIds.has(t.row_id) ? { ...t, ...patch } : t))
   }
 
-  function applyBulkAssignees(names: string[]) {
-    if (names.length === 0) return
+  function applyBulkAssignees() {
+    if (bulkAssignees.length === 0) return
     onChange(tasks.map(t =>
       selectedIds.has(t.row_id)
-        ? { ...t, assignee_names: [...new Set([...t.assignee_names, ...names])] }
+        ? { ...t, assignee_names: [...new Set([...t.assignee_names, ...bulkAssignees])] }
         : t
     ))
     setBulkAssignees([])
@@ -223,10 +223,14 @@ export function TaskTable({ tasks, members, onChange }: Props) {
           <AssigneeMultiSelect
             value={bulkAssignees}
             members={members}
-            onChange={(names) => {
-              if (names.length > 0) applyBulkAssignees(names)
-            }}
+            onChange={(names) => setBulkAssignees(names)}
           />
+          <button
+            onClick={applyBulkAssignees}
+            className="text-xs text-slate-500 hover:text-slate-700 underline"
+          >
+            Apply
+          </button>
 
           <select
             className="border rounded px-1 py-0.5 text-xs border-slate-200"
