@@ -12,7 +12,7 @@ class Task(BaseModel):
     task_name: str
     description: str
     assignee_names: list[str] = Field(default_factory=list)
-    estimated_hours: Optional[float] = Field(None, ge=0.5, le=999)
+    estimated_hours: float = Field(..., ge=0.5, le=999)
     billing_type: BillingType
     priority: Optional[Priority] = None
     dependencies: list[str] = Field(default_factory=list)
