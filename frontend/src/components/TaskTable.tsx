@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { v4 as uuidv4 } from 'uuid'
-import type { Task, BillingType, Priority, ZohoMember, ZohoMilestone } from '../types/task'
+import type { Task, BillingType, Priority, ZohoMember } from '../types/task'
 import { validateTasksForPush } from '../utils/validation'
 
 interface Props {
   tasks: Task[]
   members: ZohoMember[]
-  milestones: ZohoMilestone[]
   onChange: (tasks: Task[]) => void  // receives full updated task array
 }
 
@@ -14,11 +13,19 @@ const BILLING_OPTIONS: BillingType[] = ['billable', 'non-billable']
 const PRIORITY_OPTIONS: Priority[] = ['high', 'medium', 'low']
 
 const CSV_COLUMNS: (keyof Task)[] = [
-  'task_name', 'description', 'assignee_name', 'estimated_hours',
-  'billing_type', 'sprint_milestone', 'priority', 'start_date', 'end_date',
+  'task_name', 'description', 'assignee_names', 'estimated_hours',
+  'billing_type', 'priority', 'start_date', 'end_date',
 ]
 
-function csvField(value: unknown): string {
+function csvField(col: keyof Task, value: unknown): string {
+  if (col === 'assignee_names') {
+    const names = (value as string[])
+    const joined = names.join(';')
+    if (joined.includes('"') || joined.includes('\n')) {
+      return '"' + joined.replace(/"/g, '""') + '"'
+    }
+    return joined
+  }
   if (value === null || value === undefined) return ''
   const str = String(value)
   if (str.includes(',') || str.includes('"') || str.includes('\n')) {
@@ -29,7 +36,7 @@ function csvField(value: unknown): string {
 
 function buildCsv(tasks: Task[]): string {
   const header = CSV_COLUMNS.join(',')
-  const rows = tasks.map(t => CSV_COLUMNS.map(col => csvField(t[col])).join(','))
+  const rows = tasks.map(t => CSV_COLUMNS.map(col => csvField(col, t[col])).join(','))
   return [header, ...rows].join('\r\n')
 }
 
@@ -50,10 +57,9 @@ function emptyTask(): Task {
     row_id: uuidv4(),
     task_name: '',
     description: '',
-    assignee_name: null,
+    assignee_names: [],
     estimated_hours: null,
     billing_type: 'billable',
-    sprint_milestone: null,
     priority: null,
     dependencies: [],
     start_date: null,
@@ -61,7 +67,7 @@ function emptyTask(): Task {
   }
 }
 
-export function TaskTable({ tasks, members, milestones, onChange }: Props) {
+export function TaskTable({ tasks, members, onChange }: Props) {
   const errors = useMemo(() => validateTasksForPush(tasks), [tasks])
   const errorMap = useMemo(
     () => Object.fromEntries(errors.map((e) => [e.row_id, new Set(e.fields)])),
@@ -69,10 +75,9 @@ export function TaskTable({ tasks, members, milestones, onChange }: Props) {
   )
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [bulkAssignee, setBulkAssignee] = useState('')
+  const [bulkAssignees, setBulkAssignees] = useState<string[]>([])
   const [bulkPriority, setBulkPriority] = useState('')
   const [bulkBilling, setBulkBilling] = useState('')
-  const [bulkMilestone, setBulkMilestone] = useState('')
   const selectAllRef = useRef<HTMLInputElement>(null)
 
   // Prune selectedIds to only IDs still present in tasks
@@ -120,10 +125,18 @@ export function TaskTable({ tasks, members, milestones, onChange }: Props) {
     onChange(tasks.map(t => selectedIds.has(t.row_id) ? { ...t, ...patch } : t))
   }
 
+  function applyBulkAssignees(_names: string[]) { /* implemented in Task 7 */ }
+
   function cellClass(row_id: string, field: string, extra = '') {
     const hasError = errorMap[row_id]?.has(field)
     return `border rounded px-1 py-0.5 text-xs w-full ${hasError ? 'border-red-500 bg-red-50' : 'border-slate-200'} ${extra}`
   }
+
+  // suppress unused warnings until Task 7 wires up AssigneeMultiSelect
+  void bulkAssignees
+  void setBulkAssignees
+  void applyBulkAssignees
+  void members
 
   if (tasks.length === 0) {
     return (
@@ -142,18 +155,8 @@ export function TaskTable({ tasks, members, milestones, onChange }: Props) {
         <div className="flex items-center gap-3 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-lg mb-2">
           <span className="text-sm font-medium text-indigo-700">{selectedIds.size} selected</span>
 
-          <select
-            className="border rounded px-1 py-0.5 text-xs border-slate-200"
-            value={bulkAssignee}
-            onChange={(e) => {
-              if (!e.target.value) return
-              bulkUpdate({ assignee_name: e.target.value })
-              setBulkAssignee('')
-            }}
-          >
-            <option value="">Set assignee…</option>
-            {members.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
-          </select>
+          {/* AssigneeMultiSelect bulk — coming in Task 7 */}
+          <span className="text-xs text-slate-400">assignee multi-select (todo)</span>
 
           <select
             className="border rounded px-1 py-0.5 text-xs border-slate-200"
@@ -179,19 +182,6 @@ export function TaskTable({ tasks, members, milestones, onChange }: Props) {
           >
             <option value="">Set billing…</option>
             {BILLING_OPTIONS.map(b => <option key={b} value={b}>{b}</option>)}
-          </select>
-
-          <select
-            className="border rounded px-1 py-0.5 text-xs border-slate-200"
-            value={bulkMilestone}
-            onChange={(e) => {
-              if (!e.target.value) return
-              bulkUpdate({ sprint_milestone: e.target.value })
-              setBulkMilestone('')
-            }}
-          >
-            <option value="">Set milestone…</option>
-            {milestones.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
           </select>
 
           <button
@@ -238,12 +228,9 @@ export function TaskTable({ tasks, members, milestones, onChange }: Props) {
                   onChange={(e) => update(task.row_id, { description: e.target.value })} />
               </td>
               <td className="p-1 border border-slate-200">
-                <select className={cellClass(task.row_id, 'assignee_name')}
-                  value={task.assignee_name ?? ''}
-                  onChange={(e) => update(task.row_id, { assignee_name: e.target.value || null })}>
-                  <option value="">— unassigned —</option>
-                  {members.map((m) => <option key={m.id} value={m.name}>{m.name}</option>)}
-                </select>
+                <div className={cellClass(task.row_id, 'assignee_names')}>
+                  {task.assignee_names.length > 0 ? task.assignee_names.join(', ') : '— unassigned —'}
+                </div>
               </td>
               <td className="p-1 border border-slate-200">
                 <input type="number" step="0.5" min="0.5" max="999"
