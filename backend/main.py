@@ -1,14 +1,14 @@
 import os
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
+load_dotenv()
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from routers.zoho_router import router as zoho_router
 from routers.extract_router import router as extract_router
 from routers.push_router import router as push_router
 from routers.google_router import router as google_router
-
-load_dotenv()
 
 app = FastAPI(title="SOW Task Generator")
 

@@ -20,16 +20,8 @@ def get_members(project_id: str):
     try:
         client = ZohoClient()
         members = client.get_members(project_id)
-        return {"members": [{"id": m["id"], "name": m["full_name"]} for m in members]}
+        return {"members": [{"id": m["id"], "name": m.get("full_name") or m.get("name", "")} for m in members]}
     except httpx.HTTPError as e:
         raise HTTPException(status_code=503, detail=f"Zoho API unavailable: {e}")
 
 
-@router.get("/projects/{project_id}/milestones")
-def get_milestones(project_id: str):
-    try:
-        client = ZohoClient()
-        milestones = client.get_milestones(project_id)
-        return {"milestones": [{"id": m["id_string"], "name": m["name"]} for m in milestones]}
-    except httpx.HTTPError as e:
-        raise HTTPException(status_code=503, detail=f"Zoho API unavailable: {e}")

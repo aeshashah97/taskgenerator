@@ -25,7 +25,6 @@ A web app that reads a Statement of Work (SOW) / WBS document, uses AI to extrac
 | assignee | yes |
 | estimated_hours | yes |
 | billing_type (billable / non-billable) | yes |
-| sprint_milestone | no |
 | priority (high / medium / low) | no |
 | dependencies | no |
 | start_date | no |

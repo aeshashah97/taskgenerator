@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from pathlib import Path
 import httpx
 
@@ -15,6 +16,8 @@ class ZohoClient:
         self._client_secret = os.getenv("ZOHO_CLIENT_SECRET", "")
         self._refresh_token = self._load_refresh_token()
         self._http = httpx.Client(timeout=30.0)
+        self._access_token: str | None = None
+        self._token_expires_at: float = 0
 
     def _load_refresh_token(self) -> str:
         if Path(TOKEN_FILE).exists():
@@ -26,6 +29,8 @@ class ZohoClient:
         Path(TOKEN_FILE).write_text(json.dumps({"refresh_token": token}))
 
     def _get_access_token(self) -> str:
+        if self._access_token and time.time() < self._token_expires_at:
+            return self._access_token
         response = self._http.post(TOKEN_URL, data={
             "refresh_token": self._refresh_token,
             "client_id": self._client_id,
@@ -37,6 +42,8 @@ class ZohoClient:
         access_token = data.get("access_token")
         if not access_token:
             raise RuntimeError(f"Failed to refresh Zoho token: {data.get('error', 'unknown')}")
+        self._access_token = access_token
+        self._token_expires_at = time.time() + 3500  # expire 100s early to be safe
         new_refresh = data.get("refresh_token")
         if new_refresh:
             self._refresh_token = new_refresh
@@ -61,15 +68,11 @@ class ZohoClient:
         response.raise_for_status()
         return response.json().get("users", [])
 
-    def get_milestones(self, project_id: str) -> list[dict]:
-        url = f"{ZOHO_BASE}/projects/{project_id}/milestones/"
-        response = self._http.get(url, headers=self._headers())
-        response.raise_for_status()
-        return response.json().get("milestones", [])
-
     def create_task(self, project_id: str, payload: dict) -> dict:
         url = f"{ZOHO_BASE}/projects/{project_id}/tasks/"
         response = self._http.post(url, headers=self._headers(), data=payload)
+        if not response.is_success:
+            raise RuntimeError(f"Zoho {response.status_code}: {response.text}")
         response.raise_for_status()
         tasks = response.json().get("tasks", [])
         if not tasks:

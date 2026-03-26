@@ -41,7 +41,7 @@ export function InputPanel({ onSowReady, disabled }: Props) {
         {(['paste', 'url'] as const).map((m) => (
           <button
             key={m}
-            className={`text-sm px-3 py-1 rounded ${mode === m ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-700'}`}
+            className={`text-sm px-4 py-1.5 rounded-full font-medium transition-colors ${mode === m ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
             onClick={() => setMode(m)}
             disabled={disabled}
           >
@@ -53,7 +53,7 @@ export function InputPanel({ onSowReady, disabled }: Props) {
       {mode === 'paste' && (
         <div className="flex flex-col gap-1">
           <textarea
-            className={`w-full h-48 p-2 border rounded text-sm font-mono resize-y ${overLimit ? 'border-red-500' : 'border-slate-300'}`}
+            className={`w-full h-56 p-3 border rounded-lg text-sm font-mono resize-y ${overLimit ? 'border-red-500' : 'border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none'}`}
             placeholder="Paste your SOW / WBS content here…"
             value={text}
             onChange={(e) => { setText(e.target.value); onSowReady(e.target.value) }}

@@ -96,14 +96,6 @@ class TestZohoApiMethods:
             members = zoho_client.get_members("proj_1")
         assert members == [{"id": "u1", "full_name": "Alice"}]
 
-    def test_get_milestones_returns_list(self, zoho_client):
-        mock_response = MagicMock()
-        mock_response.json.return_value = {"milestones": [{"id_string": "m1", "name": "Sprint 1"}]}
-        mock_response.raise_for_status = MagicMock()
-        with patch.object(zoho_client._http, "get", return_value=mock_response):
-            milestones = zoho_client.get_milestones("proj_1")
-        assert milestones == [{"id_string": "m1", "name": "Sprint 1"}]
-
     def test_create_task_returns_first_task(self, zoho_client):
         mock_response = MagicMock()
         mock_response.json.return_value = {"tasks": [{"id_string": "t1", "name": "My Task"}]}

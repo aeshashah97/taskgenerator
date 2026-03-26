@@ -1,5 +1,5 @@
 import type {
-  ZohoProject, ZohoMember, ZohoMilestone,
+  ZohoProject, ZohoMember,
   ExtractRequest, Task, PushRequest, PushResponse,
 } from '../types/task'
 
@@ -33,10 +33,6 @@ export async function fetchMembers(projectId: string): Promise<ZohoMember[]> {
   return data.members
 }
 
-export async function fetchMilestones(projectId: string): Promise<ZohoMilestone[]> {
-  const data = await apiFetch<{ milestones: ZohoMilestone[] }>(`/zoho/projects/${projectId}/milestones`)
-  return data.milestones
-}
 
 export async function fetchGoogleDoc(url: string): Promise<string> {
   const encoded = encodeURIComponent(url)
