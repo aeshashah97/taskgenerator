@@ -72,21 +72,24 @@ interface AssigneeMultiSelectProps {
   members: ZohoMember[]
   onChange: (names: string[]) => void
   hasError?: boolean
+  placeholder?: string
+  onClose?: (names: string[]) => void
 }
 
-function AssigneeMultiSelect({ value, members, onChange, hasError }: AssigneeMultiSelectProps) {
+function AssigneeMultiSelect({ value, members, onChange, hasError, placeholder = '— unassigned —', onClose }: AssigneeMultiSelectProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     function handleMouseDown(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) {
+        if (open) onClose?.(value)
         setOpen(false)
       }
     }
     document.addEventListener('mousedown', handleMouseDown)
     return () => document.removeEventListener('mousedown', handleMouseDown)
-  }, [])
+  }, [open, onClose, value])
 
   function toggle(name: string) {
     if (value.includes(name)) {
@@ -96,14 +99,24 @@ function AssigneeMultiSelect({ value, members, onChange, hasError }: AssigneeMul
     }
   }
 
-  const displayText = value.length > 0 ? value.join(', ') : '— unassigned —'
+  function handleClose() {
+    if (open) onClose?.(value)
+    setOpen(false)
+  }
+
+  const displayText = value.length === 0
+    ? placeholder
+    : value.length === 1
+      ? value[0]
+      : `${value[0]} +${value.length - 1}`
   const borderClass = hasError ? 'border-red-500 bg-red-50' : 'border-slate-200'
+  const placeholderClass = value.length === 0 ? 'text-slate-400' : ''
 
   return (
     <div ref={ref} className="relative">
       <div
-        className={`border rounded px-1 py-0.5 text-xs w-full cursor-pointer truncate ${borderClass}`}
-        onClick={() => setOpen(o => !o)}
+        className={`border rounded px-1 py-0.5 text-xs w-full cursor-pointer truncate ${borderClass} ${placeholderClass}`}
+        onClick={() => open ? handleClose() : setOpen(true)}
         title={value.length > 0 ? value.join(', ') : undefined}
       >
         {displayText}
@@ -223,14 +236,10 @@ export function TaskTable({ tasks, members, onChange }: Props) {
           <AssigneeMultiSelect
             value={bulkAssignees}
             members={members}
+            placeholder="Set assignee…"
             onChange={(names) => setBulkAssignees(names)}
+            onClose={(names) => { if (names.length > 0) { applyBulkAssignees(); } }}
           />
-          <button
-            onClick={applyBulkAssignees}
-            className="text-xs text-slate-500 hover:text-slate-700 underline"
-          >
-            Apply
-          </button>
 
           <select
             className="border rounded px-1 py-0.5 text-xs border-slate-200"
